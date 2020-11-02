@@ -1,9 +1,0 @@
-struct mbot_image_t
-{
-    int64_t utime;
-
-    // TODO: Feel free to change the image size below,
-    // and remember to change the width and height accordingly in mbot_img_streaming.py
-
-    int16_t encode_img[144][192][3]; 
-}
