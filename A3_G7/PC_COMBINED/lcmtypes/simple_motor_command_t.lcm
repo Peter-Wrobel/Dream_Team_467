@@ -1,0 +1,5 @@
+struct simple_motor_command_t {
+    int64_t timestamp;
+    float forward_velocity;
+    float angular_velocity;
+}
