@@ -31,6 +31,7 @@
 #include <lcm/lcm-cpp.hpp>
 #include "../../lcmtypes/mbot_imu_t.hpp"
 #include "../../lcmtypes/mbot_image_t.hpp"
+#include "../../lcmtypes/mbot_video_stream_t.hpp"
 
 #include<opencv2/core/core.hpp>
 
@@ -57,6 +58,8 @@ void lcm_photo_handler(void);
 // Thread Synchronizers
 std::mutex lcm_mutex;
 std::condition_variable condv;
+std::condition_variable condv_vid;
+
 bool found_image;
 
 // global values updated constantly
@@ -65,11 +68,29 @@ vector<ORB_SLAM3::IMU::Point> vImuMeas;
 
 double vAccX, vAccY, vAccZ, vRotX, vRotY, vRotZ, vTime;
 vector<vector<vector<int16_t>>> p_image(144, vector<vector<int16_t>>(192, vector<int16_t>(3)));
-uint32_t ni;
+int64_t ni;
 
 
 
 
+
+
+// int main(){
+//     lcm::LCM lcm = lcm_create("udpm://239.255.76.67:7667?ttl=1");
+//     if(!lcm.good()){
+//         return 1;
+//     }
+//     Handler handlerObject;
+//     lcm.subscribe("MBOT_VIDEO_STREAM", &Handler::handleStream, &handlerObject);
+//     cout << "subscribed\n";
+//     while(true){
+//         lcm.handle();
+//         cout << "handling\n";
+//     }
+//     return 0;
+// }
+
+cv::Mat frame;
 
 
 class Handler 
@@ -82,7 +103,6 @@ class Handler
         {
             std::lock_guard<std::mutex> lk(lcm_mutex);
             
-            printf("Received message on channel \"%s\", size %d \n", chan.c_str(), vImuMeas.size());
 
 
             vAccX  =  msg->gyro[0];
@@ -98,32 +118,65 @@ class Handler
 
             //keeps only latest IMUS_PER_IMG imu measurements in case there is some stalling from image lcm
             if(vImuMeas.size()>IMUS_PER_IMG){
+                std::cout << "IMU vector full - discarding oldest" << std::endl;
                 vImuMeas.erase(vImuMeas.begin());
             }
 
         }
 
-    void handleImageMessage(const lcm::ReceiveBuffer* rbuf,
-        const std::string& chan, 
-        const mbot_image_t *msg)
-        {
+
+        void handleStream(const lcm::ReceiveBuffer* rbuf, const std::string& chan, const mbot_video_stream_t* msg){
             std::lock_guard<std::mutex> lk(lcm_mutex);
+            
             found_image = true;
-            ni = msg->utime;
-            std::cout << "Notifying" <<std::endl;
+            ni= msg->timestamp;
 
-            for(int x = 0 ; x< 144; ++x){
-                for(int y= 0; y< 192; ++y){
-                    for(int z = 0; z < 3; ++z)
-                    {
-                        p_image[x][y][z] = msg->encode_img[x][y][z];
 
+            cout << "In Video handler\n";
+            frame = cv::imdecode(msg->image, cv::IMREAD_GRAYSCALE);
+            // std::string frame_name = to_string(msg->timestamp);
+            // cv::imwrite("./stream_data/"+frame_name+".jpg", frame);
+            //imshow("Frame", frame);
+            cout << "Received Image\n";
+
+            std::cout << "Notifying ORBSLAM thread" <<std::endl;
+
+            condv.notify_all();
+        }        
+
+
+        void handleImageMessage(const lcm::ReceiveBuffer* rbuf,
+            const std::string& chan, 
+            const mbot_image_t *msg)
+            {
+                std::lock_guard<std::mutex> lk(lcm_mutex);
+
+
+                
+                found_image = true;
+                ni = msg->utime;
+                std::cout << "\n======== IMAGE THREAD =========\n" <<std::endl;
+
+                std::cout << "Reading image..." <<std::endl;
+
+                for(int x = 0 ; x< 144; ++x){
+                    for(int y= 0; y< 192; ++y){
+                        for(int z = 0; z < 3; ++z)
+                        {
+                            p_image[x][y][z] = msg->encode_img[x][y][z];
+
+                        }
                     }
                 }
-            }
-            condv.notify_all();
 
-        }
+                std::cout << "Notifying ORBSLAM thread" <<std::endl;
+
+                condv.notify_all();
+
+
+                std::cout << "\n======== IMAGE THREAD END =========\n" <<std::endl;
+
+            }
 
 
 
@@ -145,6 +198,25 @@ void lcm_imu_handler(void){
     while(0 == lcm.handle());
 
 }
+
+void lcm_video_handler(void){
+
+
+
+
+
+    // Makes lcm o
+    lcm::LCM lcm;
+    if(!lcm.good())
+        return;
+    Handler handlerObject;
+    lcm.subscribe("MBOT_VIDEO_STREAM", &Handler::handleStream, &handlerObject);
+
+
+    while(0 == lcm.handle());
+
+}
+
 
 
 void lcm_image_handler(void){
@@ -186,7 +258,6 @@ double ttrack_tot = 0;
 int main(int argc, char *argv[])
 {
 
-    p_image_init();
 
     if(argc < 7)
     {
@@ -226,37 +297,43 @@ int main(int argc, char *argv[])
     cout.precision(8);
 
 
-
-    // Create SLAM system. It initializes all system threads and gets ready to process frames.
-    // ORB_SLAM3::System SLAM(
-    //                     argv[1],
-    //                     argv[2],
-    //                     DO_IMU ? ORB_SLAM3::System::IMU_MONOCULAR : ORB_SLAM3::System::MONOCULAR,
-    //                     true);
+    std::cout << "\ngoind to sleep befreo" << std::endl;
 
 
-    std::thread lcm_imu_thread; 
+
+    //Create SLAM system. It initializes all system threads and gets ready to process frames.
+    ORB_SLAM3::System SLAM(
+                        argv[1],
+                        argv[2],
+                        DO_IMU ? ORB_SLAM3::System::IMU_MONOCULAR : ORB_SLAM3::System::MONOCULAR,
+                        true);
+
+
+    //std::thread lcm_imu_thread; 
     if (DO_IMU){
 
-        lcm_imu_thread = std::thread(lcm_imu_handler);
+        //lcm_imu_thread = std::thread(lcm_imu_handler);
     }
 
 
-    std::thread lcm_image_thread(lcm_image_handler);
+    std::thread lcm_image_thread(lcm_video_handler);
 
 
-    for (seq = 0; seq<NUM_SAMPLES; seq++)
+
+    while(1)
     {
+
+
+
         // we wait for next image to be handled
         std::unique_lock<std::mutex> lk(lcm_mutex);
+        std::cout << "\ngoind to sleep" << std::endl;
         condv.wait(lk, []{return found_image == true;});
+
+        std::cout << "\n======== ORBSLAM THREAD =========\n" <<std::endl;
+
         found_image = false;
-        std::cout << "printing imus " <<std::endl;
 
-
-        for (auto imus :vImuMeas){
-            std::cout << imus.a << endl;
-        }
 
 
 
@@ -265,16 +342,11 @@ int main(int argc, char *argv[])
         vector<int> sizes = {144,192,3};
         cv::Mat im(sizes, CV_16U);
 
-        std::cout << "sample output" <<  p_image[1][68][2] << std::endl;
+        std::cout << "Converting image to cv::Mat" << std::endl;
 
-        memcpy(im.data, p_image.data(), p_image.size()*sizeof(int16_t));
 
-            
-            
-        std::cout << "-----------a" << std::endl;
-        
-        // Read image from file
-        std::cout << "-----------b" << std::endl;
+
+
         
 
         //double tframe = vTimestampsCam[seq][ni];
@@ -286,12 +358,17 @@ int main(int argc, char *argv[])
         std::chrono::monotonic_clock::time_point t1 = std::chrono::monotonic_clock::now();
         #endif
         
-        std::cout << "-----------e" << std::endl;
+        std::cout << "Calling 'TrackMonocular'"<< std::endl;
         
-        // if (DO_IMU)
-        //     SLAM.TrackMonocular(im,tframe,vImuMeas);
-        // else
-        //     SLAM.TrackMonocular(im,tframe);
+        if (DO_IMU){
+            //lcm_imu_thread.join();
+            lcm_image_thread.join();
+            exit(1);
+            //SLAM.TrackMonocular(im,tframe,vImuMeas);
+        }
+        else{
+            SLAM.TrackMonocular(frame,tframe);
+        }
         std::cout << "-----------f" << std::endl;
             
 
@@ -309,20 +386,29 @@ int main(int argc, char *argv[])
 
         std::cout << "-----------h" << std::endl;
 
-        if(seq < num_seq - 1)
-        {
-            cout << "Changing the dataset" << endl;
+        // if(seq < num_seq - 1)
+        // {
+        //     cout << "Changing the dataset" << endl;
 
-            // SLAM.ChangeDataset();
-        }
+        //     //SLAM.ChangeDataset();
+        // }
+
+        std::cout << "Clearing IMU vector" << std::endl;
+
+        //vImuMeas.clear();
+        std::cout << seq << std::endl;
+        std::cout << "\n======== ORBSLAM THREAD END =========\n" <<std::endl;
 
 
-        vImuMeas.clear();
     }
 
 
-    lcm_imu_thread.join();
+    //lcm_imu_thread.join();
     lcm_image_thread.join();
+
+    std::cout << "the end" << endl;
+
+    SLAM.Shutdown();
     return 0;
 }
 
