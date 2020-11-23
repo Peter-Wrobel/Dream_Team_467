@@ -76,8 +76,8 @@ imu_subscription = lc.subscribe("MBOT_IMU", simple_imu_handler)
 #     print(mtx)
 #     print("Disortion:", dist)
 
-vid_data = open('video_images/vid_data.csv', 'w+')
-vid_data.write("#timestamp [ns],filename")
+#vid_data = open('video_images/vid_data.csv', 'w+')
+#vid_data.write("#timestamp [ns],filename")
 
 
 
@@ -98,7 +98,7 @@ try:
         if not color: continue
 
         #get the frame's timestamp
-        color_tstamp = color.get_frame_timestamp()
+        color_tstamp = color.get_timestamp()
         print("realsense timestamp:\t", color_tstamp)
 
         #convert image to numpy array
@@ -131,7 +131,7 @@ try:
         image = image.swapaxes(0,1)
         frame_num = "%08d" % (frame_count,)
 
-        vid_data.write(str(time.time_ns()) + ',' + "frame_"+frame_num+".png")
+        #vid_data.write(str(time.time_ns()) + ',' + "frame_"+frame_num+".png")
 
         image = pygame.surfarray.make_surface(image)
         screen.blit(image, (0,0))
