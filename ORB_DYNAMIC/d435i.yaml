@@ -11,11 +11,11 @@ Camera.fy: 384.635
 Camera.cx: 316.038
 Camera.cy: 236.032
 
-Camera.k1: 0
-Camera.k2: 0
-Camera.p1: 0
-Camera.p2: 0
-Camera.k3: 0
+Camera.k1: 0.0
+Camera.k2: 0.0
+Camera.p1: 0.0
+Camera.p2: 0.0
+Camera.k3: 0.0
 
 # Camera resolution
 Camera.width: 640
@@ -34,7 +34,7 @@ Camera.RGB: 1
 ThDepth: 40.0
 
 # Deptmap values factor 
-DepthMapFactor: 5000.0 # 1.0 for ROS_bag
+DepthMapFactor: 1.0 # 1.0 for ROS_bag
 
 #--------------------------------------------------------------------------------------------
 # ORB Parameters
@@ -62,7 +62,7 @@ ORBextractor.minThFAST: 7
 Viewer.KeyFrameSize: 0.05
 Viewer.KeyFrameLineWidth: 1
 Viewer.GraphLineWidth: 0.9
-Viewer.PointSize:2
+Viewer.PointSize: 2
 Viewer.CameraSize: 0.08
 Viewer.CameraLineWidth: 3
 Viewer.ViewpointX: 0
