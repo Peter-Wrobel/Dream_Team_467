@@ -20,19 +20,23 @@ void parseMap(std::vector<KeyFrame*> frames) {
     
 }
 
-void parsePoints(std::set<MapPoint*> points) {
+float* parsePoints(std::set<MapPoint*> points) {
 
-    std::set<MapPoint*> axisPoints;
+    float[points.size()][3] worldPoints;
 
     std::set<MapPoint*>::iterator it = points.begin();
+    size_t index = 0;
     for(it; it != points.end(); it++) {
         cv::Mat pos = it->getWorldPos();
 
         // get all the ones with the same z axis clustered
-        // z_val = 
+        worldPoints[index][0] = pos.at<float>(0);
+        worldPoints[index][1] = pos.at<float>(1);
+        worldPoints[index][2] = pos.at<float>(2);
 
         // if there are multiple z axis' add it to the set 
-        // axisPoints.insert(makePair(z_val, it))
-
+        index++;
     }
+
+    return worldPoints;
 }

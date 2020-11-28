@@ -5,4 +5,4 @@
 
 void parseMap(std::vector<KeyFrame*> points) {}
 
-void parsePoints(std::set<MapPoint*> points) {}
+float* parsePoints(std::set<MapPoint*> points) {}

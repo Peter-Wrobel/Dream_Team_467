@@ -29,9 +29,9 @@
 
 #include <stdio.h>
 #include <lcm/lcm-cpp.hpp>
-#include "../../lcmtypes/mbot_imu_t.hpp"
-#include "../../lcmtypes/mbot_image_t.hpp"
-#include "../../lcmtypes/mbot_video_stream_t.hpp"
+#include "/home/atishays/Desktop/467/ORB_SLAM3/Examples/Monocular-Inertial/lcmtypes/mbot_imu_t.hpp"
+#include "/home/atishays/Desktop/467/ORB_SLAM3/Examples/Monocular-Inertial/lcmtypes/mbot_image_t.hpp"
+#include "/home/atishays/Desktop/467/ORB_SLAM3/Examples/Monocular-Inertial/lcmtypes/mbot_video_stream_t.hpp"
 
 #include<opencv2/core/core.hpp>
 
@@ -177,6 +177,13 @@ class Handler
                 std::cout << "\n======== IMAGE THREAD END =========\n" <<std::endl;
 
             }
+        
+        void handleRansacMessage(const lcm::ReceiveBuffer* rbuf,
+            const std::string& chan, 
+            const mbot_image_t *msg)
+            {
+
+            }
 
 
 
@@ -197,6 +204,15 @@ void lcm_imu_handler(void){
 
     while(0 == lcm.handle());
 
+}
+
+void lcm_ransac_handler(void){
+    lcm::LCM lcm;
+    if(!lcm.good()){
+        return;
+    }
+    Handler handlerObject;
+    lcm.subscribe("MBOT_RANSAC", &Handler::handleRansacMessage, &handlerObject);
 }
 
 void lcm_video_handler(void){
@@ -474,3 +490,4 @@ void LoadIMU(const string &strImuPath, vector<double> &vTimeStamps, vector<cv::P
     }
 }
 */
+

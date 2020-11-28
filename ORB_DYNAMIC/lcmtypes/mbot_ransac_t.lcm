@@ -1,0 +1,7 @@
+struct mbot_ransac_t
+{
+    int64_t num_points;
+    int64_t num_inliers;
+    float points[num_points][3];
+    float inliers[num_inliers][3];
+}
