@@ -1,0 +1,8 @@
+struct mbot_imu_t
+{
+    bool dynamic_obj;
+    float obj_x;
+    float obj_y;
+    float obj_theta;
+    float obj_vel;
+}
