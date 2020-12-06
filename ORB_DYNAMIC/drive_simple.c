@@ -11,6 +11,7 @@
 #include <sys/stat.h>
 #include <sys/types.h>
 #include <getopt.h>
+#include "stdbool.h"
 
 #include <lcm/lcm.h>
 // #include "../lcmtypes/longitudinal_t.h"
@@ -84,6 +85,8 @@ float obj_vel = 0;
 float dist = 0;
 float selfx = 0;
 float selfy = 0;
+float covered_dist = 0;
+float self_angle = 0;
 
 enum Mode mode;
 enum Mode prev_mode;
@@ -108,12 +111,18 @@ void motion_vec_handler(const lcm_recv_buf_t* rbuf,
 //                           const char* channel,
 //                           const lateral_t* msg,
 //                           void* user);
+void forward();
+void backward();
+void right();
+void left();
+void update_self_odom();
 void calculate_setpoints();
 void longitudinal_controller();
 void stop_controller();
 void lateral_controller();
 void clamp_pwm();
 void clear_encoder_history();
+int64_t min(int64_t l, int64_t r);
 
 /*******************************************************************************
 * int main() 
@@ -169,9 +178,10 @@ int main(int argc, char *argv[]){
     watchdog_timer = 0.0;
     printf("Running...\n");
     state_t_subscribe(lcm, "STATE", &state_handler, NULL);
-    longitudinal_t_subscribe(lcm, "LONGITUDINAL", &longitudinal_handler, NULL);
-    lateral_t_subscribe(lcm, "LATERAL", &lateral_handler, NULL);
-  
+    // longitudinal_t_subscribe(lcm, "LONGITUDINAL", &longitudinal_handler, NULL);
+    // lateral_t_subscribe(lcm, "LATERAL", &lateral_handler, NULL);
+    motion_vec_t_subscribe(lcm, "MOTION_VEC", &motion_vec_handler, NULL);
+
     while(rc_get_state()==RUNNING){
         watchdog_timer += 0.01;
 
@@ -185,6 +195,7 @@ int main(int argc, char *argv[]){
         }
 	
 	if (mode != prev_mode){
+	printf("In Stopping controller\n");
         stopped = false;
         while(!stopped){
             stop_controller();
@@ -194,20 +205,25 @@ int main(int argc, char *argv[]){
 
             rc_nanosleep(1E9 / 10);
         }
+	prev_mode = mode;
     }
     else if (mode == Explore) {
-        if (clear_ahead){
-            forward_controller();
+        printf("In Explore Mode\n");
+	if (clear_ahead){
+            forward();
         }
         else{
-            right_controller();
+            right();
         }
 		// if (mode == Forward) {forward_controller()}
         // if (mode == Backward) {backward_controller()}
         // if (mode == Right) {right_controller()}
         // if (mode == Left) {left_controller()}
+	// rc_motor_set(1, l_pwm);
+	// rc_motor_set(2, r_pwm);
 	}
 	else if (mode == Follow) {
+	printf("In Follow Mode\n");
         update_self_odom();
         longitudinal_controller();
         lateral_controller();
@@ -220,9 +236,12 @@ int main(int argc, char *argv[]){
         // if (mode == Left) {left_controller()}
 	}
 	else {
+	printf("No Mode wawaaweewaa");
         // no mode selected 
-		rc_motor_set(1,0.0);
-        rc_motor_set(2,0.0);
+	l_pwm = .1;
+	r_pwm = .1;
+		rc_motor_set(1,l_pwm);
+        rc_motor_set(2,r_pwm);
 	}
 	// rc_motor_set(2, l_pwm);
 	// rc_motor_set(1, r_pwm);
@@ -231,7 +250,7 @@ int main(int argc, char *argv[]){
 	rc_nanosleep(1E9 / 10); //handle at 10Hz
 		
 	// last_p_v_term = p_v_term;
-	float t = (float) (t_prev - t_prev_v) / 1E9;
+	// float t = (float) (t_prev - t_prev_v) / 1E9;
 	// p_v_term = v_goal - vel;
 	// d_v_term = (p_v_term - last_p_v_term)/t;
     }
@@ -307,7 +326,7 @@ void motion_vec_handler(const lcm_recv_buf_t* rbuf,
 // }
 
 void forward(){
-    rc_motor_set(1,SPEED;
+    rc_motor_set(1,SPEED);
     rc_motor_set(2,SPEED);
 }
 
@@ -332,7 +351,7 @@ void calculate_setpoints(){
     //  setpoint proportional to the distance
 
     //convert theta to degrees
-    obj_theta = obj_theta * (180/PI);
+    obj_theta = obj_theta * (180/M_PI);
 
     //calc dist to object and apply scaling w/ offset to get vel command
     dist = sqrt(pow(obj_x,2)+pow(obj_y,2));
@@ -425,7 +444,7 @@ void update_self_odom(){
     curr_right_enc = curr_right_enc*(2*M_PI*0.042)/(20*78);
 
     covered_dist = min(curr_left_enc, curr_right_enc);
-    self_angle = ((curr_left_enc - curr_right_enc)*(2*M_PI*0.042)/(0.11*20*78)) % 360;
+    self_angle = (int)((curr_left_enc - curr_right_enc)*(2*M_PI*0.042)/(0.11*20*78)) % 360;
 }
 
 int64_t min(int64_t left, int64_t right){
@@ -465,7 +484,7 @@ void publish_encoder_msg(){
 
     vel = (encoder_msg.left_delta+encoder_msg.right_delta)*(2*M_PI*0.042)/(2.0*20*78*t_passed);
     ang = (-encoder_msg.left_delta+encoder_msg.right_delta)*(2*M_PI*0.042)/(0.11*20*78*t_passed);
-    printf(" ENC: %lld | %lld  - v: %0.3f | w: %0.3f | p-term: %0.3f | l-pwm: %0.3f | r-pwm: %0.3f |- t_pass: %0.3f | t: %lld\n", encoder_msg.leftticks, encoder_msg.rightticks, vel, ang, p_w_term, l_pwm, r_pwm, t_passed, encoder_msg.utime);
+    printf("Mode: %d ENC: %lld | %lld | l-pwm: %0.3f | r-pwm: %0.3f |- t_pass: %0.3f | t: %lld\n", mode,  encoder_msg.leftticks, encoder_msg.rightticks, l_pwm, r_pwm, t_passed, encoder_msg.utime);
 
     t_prev = encoder_msg.utime;
     left_prev = curr_left;
