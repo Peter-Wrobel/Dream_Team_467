@@ -1,6 +1,6 @@
-struct mbot_imu_t
+struct motion_vec_t
 {
-    bool dynamic_obj;
+    boolean dynamic_obj;
     float obj_x;
     float obj_y;
     float obj_theta;
